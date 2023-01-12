@@ -127,6 +127,3 @@ def flash_uf2(file_name):
     # Once the file transfer has completed, unmount the drive and cleanup
     subprocess.run(["sudo", "umount", "-l", "/media/rp2040"])
     subprocess.run(["sudo", "rmdir", "/media/rp2040"])
-    
-    
-    
