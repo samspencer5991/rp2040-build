@@ -9,6 +9,11 @@ import pprint
 import os
 import psutil
 
+global rpi_VID
+global rpi_boot_PID
+global rpi_probe_PID
+global rpi_cdc_uart_PID
+
 rpi_VID = "2e8a"
 rpi_boot_PID = "0003"
 rpi_probe_PID = "0004"
