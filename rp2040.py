@@ -127,7 +127,7 @@ def flash_uf2(file_name):
     # Check for a valid uf2 file extension
     if file_name.endswith(".uf2") == False:
         print("Invalid file format")
-        return
+        return False
     if not os.path.exists(file_name):
         print("File does not exist")
         #return
@@ -153,8 +153,9 @@ def flash_uf2(file_name):
     output = subprocess.run(["sudo", "cp", file_name, "/media/rp2040"], capture_output=True)
     if output.returncode != 0:
         print("An error occured. Copying file to mounted volume as not successful")
-        return
+        return False
     print("Flashing complete! Unmounting drive and performing cleanup...")
     # Once the file transfer has completed, unmount the drive and cleanup
     subprocess.run(["sudo", "umount", "-l", "/media/rp2040"])
     subprocess.run(["sudo", "rm", "-r", "/media/rp2040"])
+    return True
