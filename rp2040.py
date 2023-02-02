@@ -26,12 +26,33 @@ def usb_reset():
         if device.get('ID_VENDOR_ID') == rpi_VID and device.get('DEVTYPE') == 'usb_device':
             device_name = device.get('DEVNAME')
             print("RP2040 device found at: " + str(device_name))
-            subprocess.run(["sudo", "/home/pi/PirateMIDI/build-station/usbreset", device_name])
+            subprocess.run(["sudo", "/home/pi/PirateMIDI/build_station/usbreset", device_name])
 
 def usb_powercycle():
     subprocess.run(["sudo", "uhubctl", "-l", "1-1", "-a", "off", "-r", "10"])
     time.sleep(0.05)
     subprocess.run(["sudo", "uhubctl", "-l", "1-1", "-a", "on", "-r", "10"])
+
+# Available keys to search by:
+# 'ID_MODEL' - Descriptor given name of the device
+# 'ID_MODEL_ID' - Product PID
+# 'SUBSYSTEM' - subsystem for function. For example, serial device = tty
+def find_device(id_model = None, id_model_id = None, subsystem = None):
+    device_found = False
+    context = pyudev.Context()
+    devices = []
+    for dev in context.list_devices(ID_BUS='usb'):
+        add_device = True
+        # Find all appropriate RP2040 based devices
+        if id_model != None and dev.get('ID_MODEL') != id_model:
+            add_device = False
+        if id_model_id != None and dev.get('ID_MODEL_ID') != id_model_id:
+           add_device = False
+        if subsystem != None and dev.get('SUBSYSTEM') != subsystem:
+           add_device = False
+        if add_device:
+            devices.append(dev)
+    return devices
 
 def enter_bootloader():
     context = pyudev.Context()
@@ -43,10 +64,8 @@ def enter_bootloader():
             if(device.get('SUBSYSTEM') == 'tty'):
                 device_found = True
                 device_name = device.get('DEVNAME')
-                print("RP2040 device found at: " + str(device_name))
-
                 # Enter the bootloader
-                print("Forcing rp2040 into bootloader") 
+                print("Device found: " + str(device_name) + ". Forcing RP2040 into bootloader...") 
                 ser = serial.Serial(
                         port=device_name,
                         baudrate=1200,
@@ -87,12 +106,18 @@ def get_status():
 def get_disk():
     context = pyudev.Context()
     device_found = False
-    for device in context.list_devices(ID_BUS='usb'):
-        # Find all appropriate RP2040 based devices
-        if device.get('ID_VENDOR_ID') == rpi_VID and device.get('ID_MODEL_ID') == rpi_boot_PID:
-            if device.get('DEVTYPE') == 'partition':
-                device_found = True
-                return device.get('DEVNAME')
+    # Check for devices inside a loop to allow for enumeration (10 seconds)
+    timeout = time.time() + 10
+    while True:
+        if time.time() > timeout:
+            break
+        for device in context.list_devices(ID_BUS='usb'):
+            # Find all appropriate RP2040 based devices
+            if device.get('ID_VENDOR_ID') == rpi_VID and device.get('ID_MODEL_ID') == rpi_boot_PID:
+                #pprint.pprint(dict(device))
+                if device.get('DEVTYPE') == 'partition':
+                    device_found = True
+                    return device.get('DEVNAME')
     if device_found == False:
         print("No suitable device was found")
         return "NONE"
@@ -121,14 +146,15 @@ def flash_uf2(file_name):
     # If the device is not already mounted, mount it
     if disk_p is None:
         print("Mounting device...")
-        subprocess.run(["sudo", "mkdir", "/media/rp2040"])
+        if not os.path.exists('/media/rp2040'):
+            subprocess.run(["sudo", "mkdir", "/media/rp2040"])
         subprocess.run(["sudo", "mount", dev_name, "/media/rp2040"])
 
     output = subprocess.run(["sudo", "cp", file_name, "/media/rp2040"], capture_output=True)
     if output.returncode != 0:
         print("An error occured. Copying file to mounted volume as not successful")
         return
-    print("Flashing complete! Unmounting drive")
+    print("Flashing complete! Unmounting drive and performing cleanup...")
     # Once the file transfer has completed, unmount the drive and cleanup
     subprocess.run(["sudo", "umount", "-l", "/media/rp2040"])
-    subprocess.run(["sudo", "rmdir", "/media/rp2040"])
+    subprocess.run(["sudo", "rm", "-r", "/media/rp2040"])
